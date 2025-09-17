@@ -27,7 +27,7 @@ cuDNN = "02a925ec-e4fe-4b08-9a7e-0d78e3d38ccd"
 [compat]
 ACE = "0.12.45"
 ACEbonds = "0.0.8"
-JuLIP = "0.14 0.15 0.16"
+JuLIP = "0.14, 0.15, 0.16"
 StaticArrays = "1.0"
 julia = "1.7"
 
