@@ -2,15 +2,18 @@
 module DataUtils
 
 using ProgressMeter
-using JuLIP
+# using JuLIP
 using ACEfriction.mUtils: reinterpret
 using StaticArrays, SparseArrays
 export FrictionData, BlockDenseArray 
 export save_h5fdata, load_h5fdata
+import AtomsBase
+using Unitful
+uconvertstrip(u,x) = ustrip(uconvert(u,x))
 using HDF5
 
 struct FrictionData
-    atoms
+    atoms::AtomsBase.AbstractSystem
     friction_tensor
     friction_indices
 end
@@ -47,7 +50,7 @@ Saves a friction tensor data in a costum formatted hdf5 file.
 ### Arguments
 - `rdata` : Vector{FrictionData} :
     A vector of friction data entries. Each entry is a structure of type `Frictiondata` with the following fields:
-    - `at` : JuLIP.Atoms : Atoms object containing the atomic positions, cell, and periodic boundary conditions.
+    - `at` : AtomsBase.FlexibleSystem : Atoms object containing the atomic positions, cell, and periodic boundary conditions. Length units are saved in Ångstrom, no matter how they are provided. 
     - `friction_tensor` : SparseMatrix{SMatrix{3,3,Float64,9}} : Sparse matrix representation of the friction tensor.
     - `friction_indices` : Vector{Int} : Indices of the atoms for which the friction tensor is defined.
 - `filename` : String : Name of the file to save to (including h5 extension).
@@ -61,15 +64,16 @@ function save_h5fdata(rdata::Vector{FrictionData}, filename::String )
             g = create_group(fid, "$i")
             # write atoms data
             ag = create_group(g, "atoms")
-            dset_pos = create_dataset(ag, "positions", Float64, (length(d.atoms.X), 3))
-            for (k,x) in enumerate(d.atoms.X)
-                dset_pos[k,:] = x
+            dset_pos = create_dataset(ag, "positions", Float64, (length(d.atoms), 3))
+            for (k,x) in enumerate(d.atoms)
+                dset_pos[k,:] = uconvertstrip.(u"Å", AtomsBase.position(x))
             end
             write_attribute(dset_pos, "column_major", true)
-            write(ag, "atypes", Int.(d.atoms.Z))
-            write(ag, "cell", Matrix(d.atoms.cell))
+            write(ag, "atypes", AtomsBase.atomic_number.(AtomsBase.species(d.atoms, :)))
+            cell = AtomsBase.cell(d.atoms)
+            write(ag, "cell", uconvertstrip.(u"Å", Matrix(hcat(cell.cell_vectors...))))
             write_attribute(ag["cell"], "column_major", true)
-            write(ag, "pbc", Array(d.atoms.pbc))
+            write(ag, "pbc", hcat(cell.periodicity...))
             # write friction data
             fg = create_group(g, "friction_tensor")
             (I,J,V) = findnz(d.friction_tensor)
@@ -82,7 +86,7 @@ function save_h5fdata(rdata::Vector{FrictionData}, filename::String )
             write_attribute(dset_ft, "column_major", true)
             write(fg, "ft_mask", d.friction_indices)
         end
-    catch 
+    catch e
         close(fid)
         rethrow(e)
     end
@@ -112,12 +116,11 @@ function _hdf52Atoms( ag::HDF5.Group )
         @warn "The attribute 'column_major' is missing for the data 'cell'. Proceed assuming array was stored in column-major format. If you are saving your array from Python, make sure to set the column_major attribute to 0 (False)."
         cell = read(ag["cell"])
     end
-    return JuLIP.Atoms(;
-                X=[SVector{3}(d) for d in eachslice(positions; dims=1)],
-                Z=read(ag["atypes"]), 
-                cell= cell,
-                pbc=Bool.(read(ag["pbc"]))
-            )
+    return AtomsBase.FlexibleSystem(
+        [AtomsBase.Atom(AtomsBase.ChemicalSpecies(z), position .* u"Å") for (z, position) in zip(read(ag["atypes"]), eachrow(positions))],
+        Tuple(eachcol(cell) .* u"Å"),
+        Tuple(Bool.(read(ag["pbc"]))),
+    )
 end
         
 function _hdf52ft( ftg::HDF5.Group ) 

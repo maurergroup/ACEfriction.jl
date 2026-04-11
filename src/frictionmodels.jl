@@ -162,7 +162,7 @@ end
 Returns the total number of scalar parameters of all matrix models in the FrictionModel object.
 """
 function nparams(fm::FrictionModel{MODEL_IDS}) where {MODEL_IDS}
-    return sum(nparams(fm.matrixmodels[s]) for s in model_ids)
+    return sum(nparams(fm.matrixmodels[s]) for s in MODEL_IDS)
 end
 
 """

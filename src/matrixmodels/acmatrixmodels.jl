@@ -36,9 +36,9 @@ end
 _index_map(i,j, ::RWCMatrixModel{O3S,CUTOFF,AtomCentered}) where {O3S,CUTOFF} = i,j
 _index_map(i,j, ::RWCMatrixModel{O3S,CUTOFF,NeighborCentered}) where {O3S,CUTOFF} = j,i 
 
-function matrix!(M::RWCMatrixModel{O3S,<:SphericalCutoff,EVALCENTER}, at::Atoms, Σ, filter=(_,_)->true) where {O3S,EVALCENTER}
+function matrix!(M::RWCMatrixModel{O3S,<:SphericalCutoff,EVALCENTER}, at::AtomsBase.FlexibleSystem, Σ, filter=(_,_)->true) where {O3S,EVALCENTER}
     site_filter(i,at) = (haskey(M.onsite, at.Z[i]) && filter(i, at))
-    for (i, neigs, Rs) in sites(at, env_cutoff(M.onsite))
+    for (i, neigs, Rs) in NeighbourLists.sites(NeighbourLists.neighbour_list(at, env_cutoff(M.onsite)))
         if site_filter(i, at) && length(neigs) > 0
             # evaluate onsite model
             Zs = at.Z[neigs]
@@ -64,9 +64,9 @@ function matrix!(M::RWCMatrixModel{O3S,<:SphericalCutoff,EVALCENTER}, at::Atoms,
     end
 end
 
-function basis!(B, M::RWCMatrixModel{O3S,<:SphericalCutoff,EVALCENTER}, at::Atoms, filter=(_,_)->true) where {O3S,EVALCENTER} # Todo change type of B to NamedTuple{(:onsite,:offsite)} 
+function basis!(B, M::RWCMatrixModel{O3S,<:SphericalCutoff,EVALCENTER}, at::AtomsBase.FlexibleSystem, filter=(_,_)->true) where {O3S,EVALCENTER} # Todo change type of B to NamedTuple{(:onsite,:offsite)} 
     site_filter(i,at) = (haskey(M.onsite, at.Z[i]) && filter(i, at))
-    for (i, neigs, Rs) in sites(at, env_cutoff(M.onsite))
+    for (i, neigs, Rs) in NeighbourLists.sites(NeighbourLists.neighbour_list(at, env_cutoff(M.onsite)))
         if site_filter(i, at) && length(neigs) > 0
             # evaluate basis of onsite model
             Zs = at.Z[neigs]

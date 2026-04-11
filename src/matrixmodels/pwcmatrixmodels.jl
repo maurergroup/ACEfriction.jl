@@ -28,15 +28,15 @@ function ACEfrictionCore.set_params!(mb::PWCMatrixModel, θ::NamedTuple)
     ACEfrictionCore.set_params!(mb, :offsite, θ.offsite)
 end
 
-function allocate_matrix(M::PWCMatrixModel, at::Atoms,  T=Float64) 
+function allocate_matrix(M::PWCMatrixModel, at::AtomsBase.FlexibleSystem,  T=Float64) 
     N = length(at)
     A = [spzeros(_block_type(M,T),N,N) for _ = 1:M.n_rep]
     return A
 end
 
-function matrix!(M::PWCMatrixModel{O3S,<:SphericalCutoff,Z2S,SC}, at::Atoms, A, filter=(_,_)->true) where {O3S, Z2S, SC}
+function matrix!(M::PWCMatrixModel{O3S,<:SphericalCutoff,Z2S,SC}, at::AtomsBase.FlexibleSystem, A, filter=(_,_)->true) where {O3S, Z2S, SC}
     site_filter(i,at) = filter(i, at)
-    for (i, neigs, Rs) in sites(at, env_cutoff(M.offsite))
+    for (i, neigs, Rs) in NeighbourLists.sites(NeighbourLists.neighbour_list(at, env_cutoff(M.offsite)))
         if site_filter(i, at) && length(neigs) > 0
             Zs = at.Z[neigs]
             # evaluate offsite model
@@ -57,7 +57,7 @@ function matrix!(M::PWCMatrixModel{O3S,<:SphericalCutoff,Z2S,SC}, at::Atoms, A, 
     end
 end
 
-function matrix!(M::PWCMatrixModel{O3S,<:EllipsoidCutoff,Z2S,SC}, at::Atoms, A, filter=(_,_)->true) where {O3S, Z2S, SC}
+function matrix!(M::PWCMatrixModel{O3S,<:EllipsoidCutoff,Z2S,SC}, at::AtomsBase.FlexibleSystem, A, filter=(_,_)->true) where {O3S, Z2S, SC}
     site_filter(i,at) = filter(i, at)
     if !isempty(M.offsite)
         for (i, j, rrij, Js, Rs, Zs) in bonds(at, Dict(zz=>cut for (zz,cut) in M.offsite), filter)
@@ -75,21 +75,21 @@ function matrix!(M::PWCMatrixModel{O3S,<:EllipsoidCutoff,Z2S,SC}, at::Atoms, A, 
 end
 
 #TODO: this is a bit of a hack. We need to find a better way to handle the different types of basis.
-function basis(M::PWCMatrixModel, at::Atoms; join_sites=false, filter=(_,_)->true, T=Float64) 
+function basis(M::PWCMatrixModel, at::AtomsBase.FlexibleSystem; join_sites=false, filter=(_,_)->true, T=Float64) 
     B = allocate_B(M, at, T)
     basis!(B, M, at, filter)
     return (join_sites ? B[1] : B)
 end
 
-function allocate_B(M::PWCMatrixModel, at::Atoms, T=Float64)
+function allocate_B(M::PWCMatrixModel, at::AtomsBase.FlexibleSystem, T=Float64)
     N = length(at)
     B_offsite = [spzeros(_block_type(M,T),N,N) for _ =  1:length(M.inds,:offsite)]
     return (offsite=B_offsite,)
 end
 
-function basis!(B, M::PWCMatrixModel{O3S,<:SphericalCutoff,Z2S,SC}, at::Atoms, filter=(_,_)->true) where {O3S, Z2S, SC} 
+function basis!(B, M::PWCMatrixModel{O3S,<:SphericalCutoff,Z2S,SC}, at::AtomsBase.FlexibleSystem, filter=(_,_)->true) where {O3S, Z2S, SC} 
     site_filter(i,at) = filter(i, at)
-    for (i, neigs, Rs) in sites(at, env_cutoff(M.offsite))
+    for (i, neigs, Rs) in NeighbourLists.sites(NeighbourLists.neighbour_list(at, env_cutoff(M.offsite)))
         if site_filter(i, at) && length(neigs) > 0
             Zs = at.Z[neigs]
             # evaluate offsite model
@@ -112,7 +112,7 @@ function basis!(B, M::PWCMatrixModel{O3S,<:SphericalCutoff,Z2S,SC}, at::Atoms, f
 end
 
 
-function basis!(B, M::PWCMatrixModel{O3S,<:EllipsoidCutoff,Z2S,SC}, at::Atoms, filter=(_,_)->true) where {O3S, Z2S, SC} 
+function basis!(B, M::PWCMatrixModel{O3S,<:EllipsoidCutoff,Z2S,SC}, at::AtomsBase.FlexibleSystem, filter=(_,_)->true) where {O3S, Z2S, SC} 
     site_filter(i,at) = filter(i, at)
     if !isempty(M.offsite)
         for (i, j, rrij, Js, Rs, Zs) in bonds(at, Dict(zz=>cut for (zz,cut) in M.offsite), filter)

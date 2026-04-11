@@ -16,7 +16,7 @@ function ACEfrictionCore.params(mb::OnsiteOnlyMatrixModel; format=:matrix, joins
         return ACEfrictionCore.params(mb, :onsite; format=format)
     else 
         θ_onsite = ACEfrictionCore.params(mb, :onsite; format=format)
-        return (onsite=θ_onsite, offsite=eltype(θ_offsite)[],)
+        return (onsite=θ_onsite, offsite=eltype(ACEfrictionCore.params(mb, :offsite; format=format))[],)
     end
 end
 
@@ -24,14 +24,14 @@ function ACEfrictionCore.set_params!(mb::OnsiteOnlyMatrixModel, θ::NamedTuple)
     ACEfrictionCore.set_params!(mb, :onsite,  θ.onsite)
 end
 
-function allocate_matrix(M::OnsiteOnlyMatrixModel, at::Atoms,  T=Float64) 
+function allocate_matrix(M::OnsiteOnlyMatrixModel, at::AtomsBase.FlexibleSystem,  T=Float64) 
     N = length(at)
     return [Diagonal(zeros(_block_type(M,T),N)) for _ = 1:M.n_rep]
 end
 
-function matrix!(M::OnsiteOnlyMatrixModel{O3S}, at::Atoms, Σ, filter=(_,_)->true) where {O3S}
+function matrix!(M::OnsiteOnlyMatrixModel{O3S}, at::AtomsBase.FlexibleSystem, Σ, filter=(_,_)->true) where {O3S}
     site_filter(i,at) = (haskey(M.onsite, at.Z[i]) && filter(i, at))
-    for (i, neigs, Rs) in sites(at, env_cutoff(M.onsite))
+    for (i, neigs, Rs) in NeighbourLists.sites(NeighbourLists.neighbour_list(at, env_cutoff(M.onsite)))
         if site_filter(i, at) && length(neigs) > 0
             Zs = at.Z[neigs]
             sm = _get_model(M, at.Z[i])
@@ -43,21 +43,21 @@ function matrix!(M::OnsiteOnlyMatrixModel{O3S}, at::Atoms, Σ, filter=(_,_)->tru
     end
 end
 
-function basis(M::OnsiteOnlyMatrixModel, at::Atoms; join_sites=false, filter=(_,_)->true, T=Float64) 
+function basis(M::OnsiteOnlyMatrixModel, at::AtomsBase.FlexibleSystem; join_sites=false, filter=(_,_)->true, T=Float64) 
     B = allocate_B(M, at, T)
     basis!(B, M, at, filter)
     return (join_sites ? B[1] : B)
 end
 
-function allocate_B(M::OnsiteOnlyMatrixModel, at::Atoms, T=Float64)
+function allocate_B(M::OnsiteOnlyMatrixModel, at::AtomsBase.FlexibleSystem, T=Float64)
     N = length(at)
     B_onsite = [Diagonal( zeros(_block_type(M,T),N)) for _ = 1:length(M.inds,:onsite)]
     return (onsite=B_onsite,)
 end
 
-function basis!(B, M::OnsiteOnlyMatrixModel, at::Atoms, filter=(_,_)->true)
+function basis!(B, M::OnsiteOnlyMatrixModel, at::AtomsBase.FlexibleSystem, filter=(_,_)->true)
     site_filter(i,at) = (haskey(M.onsite, at.Z[i]) && filter(i, at))
-    for (i, neigs, Rs) in sites(at, env_cutoff(M.onsite))
+    for (i, neigs, Rs) in NeighbourLists.sites(NeighbourLists.neighbour_list(at, env_cutoff(M.onsite)))
         if site_filter(i, at) && length(neigs) > 0
             # evaluate basis of onsite model
             Zs = at.Z[neigs]
