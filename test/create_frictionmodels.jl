@@ -2,7 +2,8 @@ using ACEfriction
 using ACEfriction: RWCMatrixModel
 using ACEfrictionCore
 using ACEfriction.MatrixModels
-using JuLIP
+#using JuLIP
+using AtomsBase
 
 
 using ACEfriction.FrictionModels
